@@ -1,155 +1,82 @@
-# SEO Maps Analyzer - Geographic Boundaries Bot
+# SEO Maps Analyzer — Geographic Boundaries Bot
 
-Python automation tool that analyzes Google Maps SEO performance across geographic boundaries. Built to identify territorial dominance radius and strategic expansion opportunities for local service businesses.
+Python tool that maps where a local business actually ranks on Google Maps across a metro
+area, and turns that into a prioritized expansion plan.
 
-## Overview
+## The problem
 
-This bot performs automated geographic SEO analysis by:
-- Testing business visibility across 25+ cities in different distance tiers
-- Tracking ranking positions for core service keywords
-- Analyzing competitor density and strength per location
-- Generating actionable expansion recommendations
-- Storing historical data for trend analysis
+A local service business ranks well in its home city and assumes it dominates the region.
+It usually doesn't. Visibility drops off sharply with distance, and the drop-off is uneven —
+some cities 15 km away are easy wins while others 5 km away are locked up by entrenched
+competitors. Without measuring it, expansion decisions are guesswork.
 
-## Tech Stack
+## What it does
 
-- **Python 3.x** - Core automation
-- **Google Maps Places API** - Location data and search results
-- **PostgreSQL** - Historical data storage and analysis
-- **python-dotenv** - Secure credential management
-- **requests** - API communication
+Runs a systematic sweep of Google Maps searches across cities grouped into distance tiers,
+records where the business appears (or doesn't), profiles the competition in each location,
+and produces a coverage map plus a ranked list of expansion targets.
 
-## Key Features
+- Tests visibility across 25+ cities in four distance tiers
+- Tracks ranking position per city/keyword pair (top 20 results)
+- Profiles competitor density, average rating and review counts per location
+- Persists every run to PostgreSQL so trends are comparable over time
+- Outputs a dominance map and phase-based expansion recommendations with difficulty scoring
 
-### Multi-Tier Geographic Analysis
-- **Tier 1 (0-5km)**: Immediate dominance zone
-- **Tier 2 (5-10km)**: Near-term expansion targets
-- **Tier 3 (10-15km)**: Strategic opportunities
-- **Tier 4 (15-25km)**: ROI evaluation zone
+**Scale:** ~1,000+ search queries per full analysis cycle.
 
-### Real-Time Metrics
-- Ranking position tracking (Top 20 results)
-- Competitor count per location
-- Average competitor ratings and review counts
-- Distance calculations using Haversine formula
-- Coverage percentage by tier
+### Distance tiers
 
-### Automated Reporting
-- Visual dominance maps
-- Strategic expansion recommendations
-- Opportunity scoring (difficulty: Easy/Medium/Hard)
-- Phase-based action plans
+| Tier | Radius | Meaning |
+|---|---|---|
+| 1 | 0–5 km | Immediate dominance zone |
+| 2 | 5–10 km | Near-term expansion targets |
+| 3 | 10–15 km | Strategic opportunities |
+| 4 | 15–25 km | ROI evaluation zone |
 
-## Use Case
-
-Built to optimize local SEO strategy for service-based businesses operating across multiple cities. Processes **1,000+ search queries per analysis cycle** to map competitive landscape and identify low-hanging fruit for geographic expansion.
-
-## Configuration
-
-Create a `.env` file with:
+## Running it
 
 ```bash
-# Google Maps API
-GOOGLE_MAPS_API_KEY=your_api_key_here
-
-# Business Configuration
-TARGET_DOMAIN=yourbusiness.com
-BUSINESS_NAME=Your Business Name
-BUSINESS_KEYWORDS=your,business,keywords
-
-# Base Location
-BASE_CITY=Los Angeles, CA
-BASE_LAT=34.0522
-BASE_LNG=-118.2437
-
-# Database (PostgreSQL)
-DB_HOST=localhost
-DB_NAME=seo_analysis
-DB_USER=postgres
-DB_PASSWORD=your_password_here
-```
-
-## Installation
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/seo-maps-analyzer.git
+git clone https://github.com/Juanespape/seo-maps-analyzer.git
 cd seo-maps-analyzer
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run analysis
-python bot_fronteras_geograficas.py
+cp .env.example .env      # then fill in your values
+python geographic_seo_analyzer.py
 ```
 
-## Requirements
+You need a **Google Maps Places API key** and a **PostgreSQL** database. All configuration
+lives in `.env` — the business being analyzed, its coordinates, keywords and DB credentials
+are variables, so the tool is not hardcoded to any one company.
 
-```
-requests>=2.31.0
-psycopg2-binary>=2.9.9
-python-dotenv>=1.0.0
-```
+## Technical decisions
 
-## Sample Output
+**Distance-tiered sampling instead of a uniform radius.** A flat radius wastes API calls on
+places that are either trivially won or hopeless. Grouping cities into tiers makes the
+output directly actionable: tier 2 is where you spend money next, tier 4 is where you check
+the math first.
 
-```
-🗺️ GEOGRAPHIC BOUNDARIES ANALYSIS - GOOGLE MAPS
-📍 Base: Los Angeles, CA
-🎯 Business: Your Business Name
+**Haversine distance computed locally, not fetched.** Great-circle distance between two
+coordinate pairs is cheap arithmetic. Calling an API for it would add latency and quota cost
+per city pair with no benefit.
 
-📏 DOMINANCE RADIUS:
-   Effective dominance radius: ~12km
-   Average Maps position: #2.3
+**PostgreSQL over flat files.** The point of the tool is comparing runs over time — did the
+push into tier 2 actually move rankings? That is a query, not a diff of CSVs.
 
-🎯 TOP EXPANSION OPPORTUNITIES:
-   1. Culver City (8.5km)
-      Competitors: 18
-      Avg rating: 4.2⭐
-      Difficulty: MEDIUM
-```
+**Business identity matching is fuzzy by design** (`_es_tu_negocio`). Google Maps returns
+business names with inconsistent suffixes, punctuation and casing, so an exact string match
+silently reports "not ranking" when the business is right there. Matching tolerates those
+variations.
 
-## Database Schema
+**Randomized pacing between requests.** Places API enforces rate limits; jittered delays
+keep a long sweep from tripping them and losing a whole run.
 
-Analysis results are stored in PostgreSQL for historical tracking:
+**Credentials only via environment variables.** `.env` is gitignored and `.env.example`
+documents what is needed — no key ever reaches the repository.
 
-```sql
-CREATE TABLE maps_analisis_geografico (
-    id SERIAL PRIMARY KEY,
-    fecha_analisis DATE,
-    ciudad VARCHAR(100),
-    keyword VARCHAR(255),
-    aparece BOOLEAN,
-    posicion INTEGER,
-    distancia_km DECIMAL(6,2),
-    total_competidores INTEGER,
-    rating_promedio_competidores DECIMAL(3,2)
-);
-```
+## Stack
 
-## Performance
-
-- **Analysis speed**: ~3 seconds per city/keyword combination
-- **Rate limiting**: Built-in delays to respect API quotas
-- **Data accuracy**: Real-time Google Maps results
-- **Scalability**: Easily configurable for 50+ cities
-
-## Future Enhancements
-
-- [ ] Automated email reports
-- [ ] Visualization dashboard (Plotly/Dash)
-- [ ] Multi-language support
-- [ ] Competitor tracking over time
-- [ ] Integration with Google Search Console
+Python 3 · Google Maps Places API · PostgreSQL (`psycopg2`) · `requests` · `python-dotenv`
 
 ## License
 
-This project is for portfolio demonstration purposes.
-
----
-
-*Built as part of my automation toolkit for local business SEO optimization*
+MIT
